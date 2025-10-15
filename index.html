@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Rắn Săn Mồi – Làm chủ quan hệ MXH (Bản có Joystick & Avatar)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #111827;
+            --ink: #e5e7eb;
+            --good: #16a34a;
+            --bad: #dc2626;
+            --accent: #38bdf8;
+        }
+
+        body {
+            background: linear-gradient(180deg, #0b1220, #0f172a 30%, #0b1220 100%);
+            color: var(--ink);
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+        }
+
+        .wrap {
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 12px;
+        }
+
+        .cardx {
+            background: var(--card);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+            padding: 14px;
+        }
+
+        #board {
+            width: 92vw;
+            max-width: 440px;
+            aspect-ratio: 1/1;
+            background: #0a0f1d;
+            border-radius: 16px;
+            border: 2px solid #1f2937;
+            touch-action: none;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin: 10px 0 12px;
+        }
+
+        .pill {
+            background: #0b1327;
+            border: 1px solid #1f2937;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-weight: 600;
+        }
+
+        .btn-pill {
+            border-radius: 999px;
+        }
+
+        .note {
+            font-size: .9rem;
+            opacity: .9;
+        }
+
+        .legend {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .toast-tip {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 18px;
+            background: #0b1327;
+            border: 1px solid #1f2937;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: .95rem;
+            z-index: 30;
+        }
+
+        .heart {
+            color: #ef4444;
+            margin-right: 2px;
+        }
+
+        .badge-good {
+            background: var(--good);
+        }
+
+        .badge-bad {
+            background: var(--bad);
+        }
+
+        canvas {
+            border-radius: 16px;
+        }
+
+        .modal-backdrop.show {
+            opacity: .35;
+        }
+
+        /* Avatar picker */
+        .avatar-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin: 8px 0 6px;
+        }
+
+        .avatar-btn {
+            font-size: 22px;
+            line-height: 1;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            background: #0b1327;
+            color: #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .avatar-btn.active {
+            outline: 2px solid #38bdf8;
+        }
+
+        /* Joystick */
+        .joy-wrap {
+            margin-top: 12px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .joystick {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            touch-action: none;
+        }
+
+        .joy-base {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #0c1a35, #0b1327 60%);
+            border: 2px solid #1f2937;
+        }
+
+        .joy-stick {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 64px;
+            height: 64px;
+            margin-left: -32px;
+            margin-top: -32px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #1f3b73, #16233e 60%);
+            border: 2px solid #2b3c5f;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
+        }
+
+        /* Optional D-Pad (ẩn mặc định, bật nếu muốn) */
+        .dpad {
+            display: none;
+            grid-template-columns: 64px 64px 64px;
+            grid-template-rows: 64px 64px 64px;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .dpad button {
+            background: #16233e;
+            border: 1px solid #2b3c5f;
+            width: 64px;
+            height: 64px;
+            border-radius: 14px;
+            color: #cfe9ff;
+            font-weight: 700;
+            font-size: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="cardx">
+            <h4 class="mb-1">Rắn Săn Mồi: <span class="text-info">Quan hệ MXH an toàn</span></h4>
+            <div class="note">Kéo <b>joystick</b> để điều khiển. Thu thập <span class="badge badge-good">AN TOÀN</span>,
+                tránh <span class="badge badge-bad">NGUY CƠ</span>. Chọn linh vật cho đầu rắn bên dưới.</div>
+
+            <div class="hud">
+                <div class="pill">Điểm: <span id="score">0</span></div>
+                <div class="pill">Tốc độ: <span id="speed">1x</span></div>
+                <div class="pill">Tim: <span id="hearts"></span></div>
+                <button id="btnRestart" class="btn btn-sm btn-outline-info btn-pill">Chơi lại</button>
+            </div>
+
+            <!-- Avatar picker -->
+            <div class="avatar-row">
+                <span class="small opacity-75 me-1">Linh vật:</span>
+                <button class="avatar-btn active" data-avatar="snake" title="Rắn">🐍</button>
+                <button class="avatar-btn" data-avatar="cat" title="Mèo">🐱</button>
+                <button class="avatar-btn" data-avatar="dog" title="Chó">🐶</button>
+                <button class="avatar-btn" data-avatar="panda" title="Gấu trúc">🐼</button>
+            </div>
+
+            <canvas id="board"></canvas>
+
+            <div class="legend">
+                <div><span class="dot" style="background:var(--good)"></span><small>Hành vi an toàn</small></div>
+                <div><span class="dot" style="background:var(--bad)"></span><small>Hành vi nguy cơ</small></div>
+            </div>
+
+            <!-- Joystick -->
+            <div class="joy-wrap">
+                <div class="joystick" id="joystick">
+                    <div class="joy-base"></div>
+                    <div class="joy-stick" id="joyStick"></div>
+                </div>
+            </div>
+
+            <!-- D-Pad dự phòng (nếu muốn bật, đổi display:block trong CSS) -->
+            <div class="dpad" aria-label="D-Pad">
+                <span></span><button id="up">▲</button><span></span>
+                <button id="left">◀</button><span></span><button id="right">▶</button>
+                <span></span><button id="down">▼</button><span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal kết quả -->
+    <div class="modal fade" id="endModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content"
+                style="background:#0b1327;color:#e5e7eb;border-radius:16px;border:1px solid #1f2937">
+                <div class="modal-header">
+                    <h5 class="modal-title">Kết thúc trò chơi</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Điểm:</strong> <span id="finalScore">0</span></p>
+                    <div class="small">
+                        <p class="mb-1"><strong>Bài học rút ra:</strong></p>
+                        <ul class="mb-0" id="tipsList"></ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-info" id="playAgain" data-bs-dismiss="modal">Chơi lại</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast-tip d-none"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (() => {
+            const canvas = document.getElementById('board');
+            const ctx = canvas.getContext('2d');
+
+            function sizeCanvas() {
+                const w = Math.min(window.innerWidth * 0.92, 440);
+                canvas.width = Math.round(w);
+                canvas.height = Math.round(w);
+            }
+            sizeCanvas(); window.addEventListener('resize', sizeCanvas);
+
+            const GRID = 20; // 20x20
+            const GOOD_TIPS = [
+                "Chỉ kết bạn với người quen hoặc đã xác thực.",
+                "Không gửi ảnh/clip nhạy cảm cho bất kỳ ai.",
+                "Bật xác thực 2 lớp, đặt mật khẩu mạnh.",
+                "Đọc kỹ hồ sơ, kiểm tra avatar & lịch sử hoạt động.",
+                "Báo cáo & chặn tài khoản có dấu hiệu lừa đảo.",
+                "Không chia sẻ thông tin cá nhân quan trọng.",
+                "Tôn trọng người khác, không bôi nhọ/làm nhục.",
+                "Hỏi người lớn/giáo viên khi thấy điều bất thường."
+            ];
+            const BAD_TIPS = [
+                "Tin nhắn việc nhẹ lương cao → Khả năng lừa đảo.",
+                "Yêu cầu bỏ học/đổi đời nhanh → Cờ đỏ!",
+                "Đòi ảnh đời tư/nhạy cảm → Chặn & báo cáo.",
+                "Dẫn dụ ra gặp mặt nơi vắng → Tuyệt đối không!",
+                "Link lạ yêu cầu đăng nhập → Lừa lấy mật khẩu."
+            ];
+            const GOODS = [
+                "Chỉ kết bạn người quen", "Không chia sẻ ảnh nhạy cảm", "Bật 2FA",
+                "Kiểm chứng tài khoản", "Báo cáo kẻ xấu", "Giữ riêng tư",
+                "Ứng xử văn minh", "Nhờ người lớn hỗ trợ"
+            ];
+            const BADS = [
+                "Việc nhẹ lương cao", "Gửi ảnh nhạy cảm", "Link lừa đảo",
+                "Hẹn gặp nơi vắng", "Nịnh nọt quá mức", "Bỏ học đi làm"
+            ];
+
+            // Avatar cấu hình
+            const AVATAR_MAP = {
+                snake: { emoji: "🐍", body: "#1d4ed8" },
+                cat: { emoji: "🐱", body: "#f59e0b" },
+                dog: { emoji: "🐶", body: "#10b981" },
+                panda: { emoji: "🐼", body: "#a78bfa" },
+            };
+            let currentAvatarKey = "snake";
+
+            // Trạng thái game
+            let snake, dir, food, bad, score, speedMul, hearts, gameOver, stepTimer, stepInterval;
+
+            function reset() {
+                snake = [{ x: 10, y: 10 }];
+                dir = { x: 1, y: 0 };
+                placeFood(); placeBad();
+                score = 0; speedMul = 1; hearts = 3; gameOver = false;
+                updateHUD();
+                stepInterval = 150; stepTimer = 0;
+            }
+
+            function updateHUD() {
+                document.getElementById('score').textContent = score;
+                document.getElementById('speed').textContent = speedMul + 'x';
+                const heartsEl = document.getElementById('hearts');
+                heartsEl.innerHTML = '';
+                for (let i = 0; i < hearts; i++) { heartsEl.innerHTML += '<span class="heart">♥</span>'; }
+            }
+
+            function randCell() { return Math.floor(Math.random() * GRID); }
+            function cellFree(pos) { return !snake.some(s => s.x === pos.x && s.y === pos.y); }
+            function placeFood() {
+                let p; do { p = { x: randCell(), y: randCell() }; } while (!cellFree(p));
+                food = { ...p, label: GOODS[Math.floor(Math.random() * GOODS.length)] };
+            }
+            function placeBad() {
+                let p; do { p = { x: randCell(), y: randCell() }; } while (!cellFree(p) || (food && p.x === food.x && p.y === food.y));
+                bad = { ...p, label: BADS[Math.floor(Math.random() * BADS.length)] };
+            }
+
+            function showToast(msg, good = true) {
+                const t = document.getElementById('toast');
+                t.textContent = msg;
+                t.classList.remove('d-none');
+                t.style.borderColor = good ? '#166534' : '#7f1d1d';
+                t.style.background = good ? '#0b1f16' : '#1a0f0f';
+                clearTimeout(t._timer);
+                t._timer = setTimeout(() => t.classList.add('d-none'), 1600);
+            }
+
+            function endGame() {
+                gameOver = true;
+                document.getElementById('finalScore').textContent = score;
+                const list = document.getElementById('tipsList');
+                list.innerHTML = '';
+                const mix = [
+                    ...shuffle(GOOD_TIPS).slice(0, 3),
+                    BAD_TIPS[Math.floor(Math.random() * BAD_TIPS.length)]
+                ];
+                mix.forEach(t => {
+                    const li = document.createElement('li'); li.textContent = t; list.appendChild(li);
+                });
+                const modal = new bootstrap.Modal('#endModal'); modal.show();
+            }
+            function shuffle(a) { return a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]); }
+
+            // Game loop
+            let last = performance.now();
+            function loop(now) {
+                const dt = now - last; last = now;
+                if (!gameOver) {
+                    stepTimer += dt;
+                    if (stepTimer >= stepInterval) {
+                        stepTimer = 0;
+                        step();
+                    }
+                    draw();
+                }
+                requestAnimationFrame(loop);
+            }
+
+            function step() {
+                const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+                // tường
+                if (head.x < 0 || head.y < 0 || head.x >= GRID || head.y >= GRID) {
+                    hearts--; updateHUD();
+                    if (hearts <= 0) { endGame(); return; }
+                    showToast("Đụng tường! Bình tĩnh xử lí tình huống.", false);
+                    snake = [{ x: 10, y: 10 }]; dir = { x: 1, y: 0 }; return;
+                }
+                // thân
+                if (snake.some((s, i) => i > 0 && s.x === head.x && s.y === head.y)) {
+                    hearts--; updateHUD();
+                    if (hearts <= 0) { endGame(); return; }
+                    showToast("Tự mâu thuẫn hành vi → rà soát nguyên tắc an toàn.", false);
+                    snake = [{ x: 10, y: 10 }]; dir = { x: 1, y: 0 }; return;
+                }
+                snake.unshift(head);
+
+                // ăn
+                if (head.x === food.x && head.y === food.y) {
+                    score++; showToast("👍 " + food.label, true); placeFood();
+                    if (score % 4 === 0 && stepInterval > 80) { speedMul++; stepInterval -= 15; updateHUD(); }
+                } else {
+                    snake.pop();
+                }
+                // bad
+                if (head.x === bad.x && head.y === bad.y) {
+                    hearts--; updateHUD(); showToast("⚠ " + bad.label, false); placeBad();
+                    if (hearts <= 0) { endGame(); }
+                }
+            }
+
+            function draw() {
+                const w = canvas.width, h = canvas.height;
+                const cellW = w / GRID, cellH = h / GRID;
+
+                // nền + lưới
+                ctx.fillStyle = '#0a0f1d'; ctx.fillRect(0, 0, w, h);
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+                for (let i = 1; i < GRID; i++) {
+                    ctx.beginPath(); ctx.moveTo(i * cellW, 0); ctx.lineTo(i * cellW, h); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, i * cellH); ctx.lineTo(w, i * cellH); ctx.stroke();
+                }
+                // food
+                roundRect(ctx, food.x * cellW + 2, food.y * cellH + 2, cellW - 4, cellH - 4, 8, '#16a34a');
+                drawLabel(food, cellW, cellH, '#a7f3d0');
+                // bad
+                roundRect(ctx, bad.x * cellW + 2, bad.y * cellH + 2, cellW - 4, cellH - 4, 8, '#dc2626');
+                drawLabel(bad, cellW, cellH, '#fecaca');
+
+                // rắn
+                const { emoji, body } = AVATAR_MAP[currentAvatarKey] || AVATAR_MAP.snake;
+                snake.forEach((s, i) => {
+                    if (i === 0) {
+                        // vẽ đầu bằng emoji
+                        const fontSize = Math.floor(cellW * 0.8);
+                        ctx.font = `${fontSize}px system-ui, "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji"`;
+                        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                        ctx.fillText(emoji, s.x * cellW + cellW / 2, s.y * cellH + cellH / 2 + 1);
+                    } else {
+                        roundRect(ctx, s.x * cellW + 2, s.y * cellH + 2, cellW - 4, cellH - 4, 6, body);
+                    }
+                });
+            }
+
+            function roundRect(ctx, x, y, w, h, r, fill) {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.arcTo(x + w, y, x + w, y + h, r);
+                ctx.arcTo(x + w, y + h, x, y + h, r);
+                ctx.arcTo(x, y + h, x, y, r);
+                ctx.arcTo(x, y, x + w, y, r);
+                ctx.closePath();
+                ctx.fillStyle = fill; ctx.fill();
+            }
+            function drawLabel(obj, cellW, cellH, color) {
+                ctx.fillStyle = color;
+                ctx.font = `${Math.round(cellW * 0.22)}px system-ui`;
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                const text = obj.label.length > 12 ? obj.label.slice(0, 12) + '…' : obj.label;
+                ctx.fillText(text, obj.x * cellW + cellW / 2, obj.y * cellH + cellH / 2);
+            }
+
+            // ==== Điều khiển ====
+            // Phím
+            const keyMap = { ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 } };
+            document.addEventListener('keydown', e => { if (keyMap[e.key]) setDir(keyMap[e.key]); });
+
+            // D-Pad dự phòng
+            const qs = id => document.getElementById(id);
+            qs('up').onclick = () => setDir({ x: 0, y: -1 });
+            qs('down').onclick = () => setDir({ x: 0, y: 1 });
+            qs('left').onclick = () => setDir({ x: -1, y: 0 });
+            qs('right').onclick = () => setDir({ x: 1, y: 0 });
+
+            function setDir(d) {
+                if (snake.length > 1 && (d.x === -dir.x && d.y === -dir.y)) return; // cấm quay 180°
+                dir = d;
+            }
+
+            // Joystick cảm ứng
+            const joy = document.getElementById('joystick');
+            const knob = document.getElementById('joyStick');
+            let joyActive = false;
+            let joyCenter = { x: 0, y: 0 };
+            const R = 70;   // bán kính base (px)
+            const r = 56 / 2; // nửa cạnh visual knob ~28px (để giới hạn)
+
+            function getCenter(el) {
+                const rect = el.getBoundingClientRect();
+                return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            }
+            function handleJoyMove(clientX, clientY) {
+                const dx = clientX - joyCenter.x;
+                const dy = clientY - joyCenter.y;
+                const dist = Math.min(Math.hypot(dx, dy), R - r);
+                const angle = Math.atan2(dy, dx); // -PI .. PI
+                const nx = Math.cos(angle) * dist;
+                const ny = Math.sin(angle) * dist;
+                knob.style.transform = `translate(${nx}px, ${ny}px)`;
+
+                // chuyển thành 4 hướng (ưu tiên trục lớn hơn)
+                const ax = Math.abs(dx), ay = Math.abs(dy);
+                if (Math.max(ax, ay) > 12) { // ngưỡng
+                    if (ax > ay) {
+                        setDir({ x: dx > 0 ? 1 : -1, y: 0 });
+                    } else {
+                        setDir({ x: 0, y: dy > 0 ? 1 : -1 });
+                    }
+                }
+            }
+            function resetKnob() { knob.style.transform = 'translate(0,0)'; }
+
+            joy.addEventListener('touchstart', (e) => {
+                joyActive = true; joyCenter = getCenter(joy);
+                const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY);
+            }, { passive: true });
+            joy.addEventListener('touchmove', (e) => {
+                if (!joyActive) return;
+                const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY);
+            }, { passive: true });
+            joy.addEventListener('touchend', () => {
+                joyActive = false; resetKnob();
+            }, { passive: true });
+            joy.addEventListener('touchcancel', () => {
+                joyActive = false; resetKnob();
+            }, { passive: true });
+
+            // Vuốt trực tiếp trên canvas (giữ như cũ, phụ trợ)
+            let startX = 0, startY = 0, down = false;
+            canvas.addEventListener('touchstart', (e) => {
+                const t = e.touches[0]; startX = t.clientX; startY = t.clientY; down = true;
+            }, { passive: true });
+            canvas.addEventListener('touchend', (e) => {
+                if (!down) return; down = false;
+                const t = e.changedTouches[0];
+                const dx = t.clientX - startX; const dy = t.clientY - startY;
+                if (Math.abs(dx) < 18 && Math.abs(dy) < 18) return;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    setDir({ x: dx > 0 ? 1 : -1, y: 0 });
+                } else {
+                    setDir({ x: 0, y: dy > 0 ? 1 : -1 });
+                }
+            }, { passive: true });
+
+            // Avatar chọn
+            document.querySelectorAll('.avatar-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.avatar-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const key = btn.getAttribute('data-avatar');
+                    if (AVATAR_MAP[key]) currentAvatarKey = key;
+                });
+            });
+
+            // Khởi tạo & nút
+            reset(); requestAnimationFrame(loop);
+            document.getElementById('btnRestart').onclick = () => { reset(); };
+            document.getElementById('playAgain').onclick = () => { reset(); };
+
+        })();
+    </script>
+</body>
+
+</html>
