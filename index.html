@@ -4,9 +4,8 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <title>Rắn Săn Mồi – Làm chủ quan hệ MXH (Bản có Joystick & Avatar)</title>
+    <title>Rắn Săn Mồi – Làm chủ quan hệ MXH (Joystick + Avatar, tối ưu điều khiển)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <style>
         :root {
             --bg: #0f172a;
@@ -120,7 +119,6 @@
             opacity: .35;
         }
 
-        /* Avatar picker */
         .avatar-row {
             display: flex;
             gap: 8px;
@@ -147,7 +145,6 @@
             outline: 2px solid #38bdf8;
         }
 
-        /* Joystick */
         .joy-wrap {
             margin-top: 12px;
             display: flex;
@@ -183,7 +180,6 @@
             box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
         }
 
-        /* Optional D-Pad (ẩn mặc định, bật nếu muốn) */
         .dpad {
             display: none;
             grid-template-columns: 64px 64px 64px;
@@ -220,7 +216,6 @@
                 <button id="btnRestart" class="btn btn-sm btn-outline-info btn-pill">Chơi lại</button>
             </div>
 
-            <!-- Avatar picker -->
             <div class="avatar-row">
                 <span class="small opacity-75 me-1">Linh vật:</span>
                 <button class="avatar-btn active" data-avatar="snake" title="Rắn">🐍</button>
@@ -236,7 +231,6 @@
                 <div><span class="dot" style="background:var(--bad)"></span><small>Hành vi nguy cơ</small></div>
             </div>
 
-            <!-- Joystick -->
             <div class="joy-wrap">
                 <div class="joystick" id="joystick">
                     <div class="joy-base"></div>
@@ -244,7 +238,6 @@
                 </div>
             </div>
 
-            <!-- D-Pad dự phòng (nếu muốn bật, đổi display:block trong CSS) -->
             <div class="dpad" aria-label="D-Pad">
                 <span></span><button id="up">▲</button><span></span>
                 <button id="left">◀</button><span></span><button id="right">▶</button>
@@ -253,7 +246,6 @@
         </div>
     </div>
 
-    <!-- Modal kết quả -->
     <div class="modal fade" id="endModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content"
@@ -283,43 +275,27 @@
         (() => {
             const canvas = document.getElementById('board');
             const ctx = canvas.getContext('2d');
-
-            function sizeCanvas() {
-                const w = Math.min(window.innerWidth * 0.92, 440);
-                canvas.width = Math.round(w);
-                canvas.height = Math.round(w);
-            }
+            function sizeCanvas() { const w = Math.min(window.innerWidth * 0.92, 440); canvas.width = Math.round(w); canvas.height = Math.round(w); }
             sizeCanvas(); window.addEventListener('resize', sizeCanvas);
 
-            const GRID = 20; // 20x20
+            const GRID = 20;
+            const INNER_MARGIN = 2; // cách tường tối thiểu 2 ô
+            const HEAD_SAFE_DIST = 4; // khoảng cách Manhattan tối thiểu tới đầu rắn
+
             const GOOD_TIPS = [
-                "Chỉ kết bạn với người quen hoặc đã xác thực.",
-                "Không gửi ảnh/clip nhạy cảm cho bất kỳ ai.",
-                "Bật xác thực 2 lớp, đặt mật khẩu mạnh.",
-                "Đọc kỹ hồ sơ, kiểm tra avatar & lịch sử hoạt động.",
-                "Báo cáo & chặn tài khoản có dấu hiệu lừa đảo.",
-                "Không chia sẻ thông tin cá nhân quan trọng.",
-                "Tôn trọng người khác, không bôi nhọ/làm nhục.",
-                "Hỏi người lớn/giáo viên khi thấy điều bất thường."
+                "Chỉ kết bạn với người quen hoặc đã xác thực.", "Không gửi ảnh/clip nhạy cảm cho bất kỳ ai.",
+                "Bật xác thực 2 lớp, đặt mật khẩu mạnh.", "Đọc kỹ hồ sơ, kiểm tra avatar & lịch sử hoạt động.",
+                "Báo cáo & chặn tài khoản có dấu hiệu lừa đảo.", "Không chia sẻ thông tin cá nhân quan trọng.",
+                "Tôn trọng người khác, không bôi nhọ/làm nhục.", "Hỏi người lớn/giáo viên khi thấy điều bất thường."
             ];
             const BAD_TIPS = [
-                "Tin nhắn việc nhẹ lương cao → Khả năng lừa đảo.",
-                "Yêu cầu bỏ học/đổi đời nhanh → Cờ đỏ!",
-                "Đòi ảnh đời tư/nhạy cảm → Chặn & báo cáo.",
-                "Dẫn dụ ra gặp mặt nơi vắng → Tuyệt đối không!",
+                "Tin nhắn việc nhẹ lương cao → Khả năng lừa đảo.", "Yêu cầu bỏ học/đổi đời nhanh → Cờ đỏ!",
+                "Đòi ảnh đời tư/nhạy cảm → Chặn & báo cáo.", "Dẫn dụ ra gặp mặt nơi vắng → Tuyệt đối không!",
                 "Link lạ yêu cầu đăng nhập → Lừa lấy mật khẩu."
             ];
-            const GOODS = [
-                "Chỉ kết bạn người quen", "Không chia sẻ ảnh nhạy cảm", "Bật 2FA",
-                "Kiểm chứng tài khoản", "Báo cáo kẻ xấu", "Giữ riêng tư",
-                "Ứng xử văn minh", "Nhờ người lớn hỗ trợ"
-            ];
-            const BADS = [
-                "Việc nhẹ lương cao", "Gửi ảnh nhạy cảm", "Link lừa đảo",
-                "Hẹn gặp nơi vắng", "Nịnh nọt quá mức", "Bỏ học đi làm"
-            ];
+            const GOODS = ["Chỉ kết bạn người quen", "Không chia sẻ ảnh nhạy cảm", "Bật 2FA", "Kiểm chứng tài khoản", "Báo cáo kẻ xấu", "Giữ riêng tư", "Ứng xử văn minh", "Nhờ người lớn hỗ trợ"];
+            const BADS = ["Việc nhẹ lương cao", "Gửi ảnh nhạy cảm", "Link lừa đảo", "Hẹn gặp nơi vắng", "Nịnh nọt quá mức", "Bỏ học đi làm"];
 
-            // Avatar cấu hình
             const AVATAR_MAP = {
                 snake: { emoji: "🐍", body: "#1d4ed8" },
                 cat: { emoji: "🐱", body: "#f59e0b" },
@@ -328,7 +304,7 @@
             };
             let currentAvatarKey = "snake";
 
-            // Trạng thái game
+            // ===== Trạng thái game =====
             let snake, dir, food, bad, score, speedMul, hearts, gameOver, stepTimer, stepInterval;
 
             function reset() {
@@ -337,7 +313,8 @@
                 placeFood(); placeBad();
                 score = 0; speedMul = 1; hearts = 3; gameOver = false;
                 updateHUD();
-                stepInterval = 150; stepTimer = 0;
+                stepInterval = 220; // chậm hơn để dễ điều khiển
+                stepTimer = 0;
             }
 
             function updateHUD() {
@@ -345,24 +322,35 @@
                 document.getElementById('speed').textContent = speedMul + 'x';
                 const heartsEl = document.getElementById('hearts');
                 heartsEl.innerHTML = '';
-                for (let i = 0; i < hearts; i++) { heartsEl.innerHTML += '<span class="heart">♥</span>'; }
+                for (let i = 0; i < hearts; i++) heartsEl.innerHTML += '<span class="heart">♥</span>';
             }
 
-            function randCell() { return Math.floor(Math.random() * GRID); }
+            function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+            function randCellInner(m = INNER_MARGIN) { return randInt(m, GRID - 1 - m); }
+            function manhattan(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
             function cellFree(pos) { return !snake.some(s => s.x === pos.x && s.y === pos.y); }
+
             function placeFood() {
-                let p; do { p = { x: randCell(), y: randCell() }; } while (!cellFree(p));
+                let p, tries = 0;
+                do {
+                    p = { x: randCellInner(), y: randCellInner() };
+                    tries++;
+                    // tránh sát đầu rắn để không bị “xoay kịp”
+                } while ((!cellFree(p)) || manhattan(p, snake[0]) < HEAD_SAFE_DIST || tries < 3 && (p.x === snake[0].x || p.y === snake[0].y));
                 food = { ...p, label: GOODS[Math.floor(Math.random() * GOODS.length)] };
             }
+
             function placeBad() {
-                let p; do { p = { x: randCell(), y: randCell() }; } while (!cellFree(p) || (food && p.x === food.x && p.y === food.y));
+                let p;
+                do {
+                    p = { x: randCellInner(), y: randCellInner() }; // cũng tránh tường để fair
+                } while ((!cellFree(p)) || (food && p.x === food.x && p.y === food.y) || manhattan(p, snake[0]) < 2);
                 bad = { ...p, label: BADS[Math.floor(Math.random() * BADS.length)] };
             }
 
             function showToast(msg, good = true) {
                 const t = document.getElementById('toast');
-                t.textContent = msg;
-                t.classList.remove('d-none');
+                t.textContent = msg; t.classList.remove('d-none');
                 t.style.borderColor = good ? '#166534' : '#7f1d1d';
                 t.style.background = good ? '#0b1f16' : '#1a0f0f';
                 clearTimeout(t._timer);
@@ -372,29 +360,20 @@
             function endGame() {
                 gameOver = true;
                 document.getElementById('finalScore').textContent = score;
-                const list = document.getElementById('tipsList');
-                list.innerHTML = '';
-                const mix = [
-                    ...shuffle(GOOD_TIPS).slice(0, 3),
-                    BAD_TIPS[Math.floor(Math.random() * BAD_TIPS.length)]
-                ];
-                mix.forEach(t => {
-                    const li = document.createElement('li'); li.textContent = t; list.appendChild(li);
-                });
+                const list = document.getElementById('tipsList'); list.innerHTML = '';
+                const mix = [...shuffle(GOOD_TIPS).slice(0, 3), BAD_TIPS[Math.floor(Math.random() * BAD_TIPS.length)]];
+                mix.forEach(t => { const li = document.createElement('li'); li.textContent = t; list.appendChild(li); });
                 const modal = new bootstrap.Modal('#endModal'); modal.show();
             }
             function shuffle(a) { return a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]); }
 
-            // Game loop
+            // ===== Loop =====
             let last = performance.now();
             function loop(now) {
                 const dt = now - last; last = now;
                 if (!gameOver) {
                     stepTimer += dt;
-                    if (stepTimer >= stepInterval) {
-                        stepTimer = 0;
-                        step();
-                    }
+                    if (stepTimer >= stepInterval) { stepTimer = 0; step(); }
                     draw();
                 }
                 requestAnimationFrame(loop);
@@ -421,7 +400,8 @@
                 // ăn
                 if (head.x === food.x && head.y === food.y) {
                     score++; showToast("👍 " + food.label, true); placeFood();
-                    if (score % 4 === 0 && stepInterval > 80) { speedMul++; stepInterval -= 15; updateHUD(); }
+                    // tăng tốc nhẹ hơn và thưa hơn
+                    if (score % 5 === 0 && stepInterval > 120) { speedMul++; stepInterval -= 12; updateHUD(); }
                 } else {
                     snake.pop();
                 }
@@ -436,7 +416,6 @@
                 const w = canvas.width, h = canvas.height;
                 const cellW = w / GRID, cellH = h / GRID;
 
-                // nền + lưới
                 ctx.fillStyle = '#0a0f1d'; ctx.fillRect(0, 0, w, h);
                 ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
                 for (let i = 1; i < GRID; i++) {
@@ -454,7 +433,6 @@
                 const { emoji, body } = AVATAR_MAP[currentAvatarKey] || AVATAR_MAP.snake;
                 snake.forEach((s, i) => {
                     if (i === 0) {
-                        // vẽ đầu bằng emoji
                         const fontSize = Math.floor(cellW * 0.8);
                         ctx.font = `${fontSize}px system-ui, "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji"`;
                         ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -483,87 +461,50 @@
                 ctx.fillText(text, obj.x * cellW + cellW / 2, obj.y * cellH + cellH / 2);
             }
 
-            // ==== Điều khiển ====
-            // Phím
+            // ===== Điều khiển =====
             const keyMap = { ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 } };
             document.addEventListener('keydown', e => { if (keyMap[e.key]) setDir(keyMap[e.key]); });
-
-            // D-Pad dự phòng
             const qs = id => document.getElementById(id);
-            qs('up').onclick = () => setDir({ x: 0, y: -1 });
-            qs('down').onclick = () => setDir({ x: 0, y: 1 });
-            qs('left').onclick = () => setDir({ x: -1, y: 0 });
-            qs('right').onclick = () => setDir({ x: 1, y: 0 });
+            ['up', 'down', 'left', 'right'].forEach(k => {
+                if (qs(k)) qs(k).onclick = () => setDir({ up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }[k]);
+            });
 
             function setDir(d) {
-                if (snake.length > 1 && (d.x === -dir.x && d.y === -dir.y)) return; // cấm quay 180°
+                if (snake.length > 1 && (d.x === -dir.x && d.y === -dir.y)) return;
                 dir = d;
             }
 
-            // Joystick cảm ứng
+            // Joystick (deadzone lớn hơn để tránh đổi hướng ngoài ý muốn)
             const joy = document.getElementById('joystick');
             const knob = document.getElementById('joyStick');
             let joyActive = false;
             let joyCenter = { x: 0, y: 0 };
-            const R = 70;   // bán kính base (px)
-            const r = 56 / 2; // nửa cạnh visual knob ~28px (để giới hạn)
+            const R = 70;       // bán kính base
+            const r = 56 / 2;     // bán kính “hiệu dụng” của knob
+            const DEADZONE = 18; // px
 
-            function getCenter(el) {
-                const rect = el.getBoundingClientRect();
-                return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-            }
+            function getCenter(el) { const rect = el.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; }
             function handleJoyMove(clientX, clientY) {
                 const dx = clientX - joyCenter.x;
                 const dy = clientY - joyCenter.y;
                 const dist = Math.min(Math.hypot(dx, dy), R - r);
-                const angle = Math.atan2(dy, dx); // -PI .. PI
+                const angle = Math.atan2(dy, dx);
                 const nx = Math.cos(angle) * dist;
                 const ny = Math.sin(angle) * dist;
                 knob.style.transform = `translate(${nx}px, ${ny}px)`;
 
-                // chuyển thành 4 hướng (ưu tiên trục lớn hơn)
                 const ax = Math.abs(dx), ay = Math.abs(dy);
-                if (Math.max(ax, ay) > 12) { // ngưỡng
-                    if (ax > ay) {
-                        setDir({ x: dx > 0 ? 1 : -1, y: 0 });
-                    } else {
-                        setDir({ x: 0, y: dy > 0 ? 1 : -1 });
-                    }
+                if (Math.max(ax, ay) > DEADZONE) {
+                    if (ax > ay) setDir({ x: dx > 0 ? 1 : -1, y: 0 });
+                    else setDir({ x: 0, y: dy > 0 ? 1 : -1 });
                 }
             }
             function resetKnob() { knob.style.transform = 'translate(0,0)'; }
 
-            joy.addEventListener('touchstart', (e) => {
-                joyActive = true; joyCenter = getCenter(joy);
-                const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY);
-            }, { passive: true });
-            joy.addEventListener('touchmove', (e) => {
-                if (!joyActive) return;
-                const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY);
-            }, { passive: true });
-            joy.addEventListener('touchend', () => {
-                joyActive = false; resetKnob();
-            }, { passive: true });
-            joy.addEventListener('touchcancel', () => {
-                joyActive = false; resetKnob();
-            }, { passive: true });
-
-            // Vuốt trực tiếp trên canvas (giữ như cũ, phụ trợ)
-            let startX = 0, startY = 0, down = false;
-            canvas.addEventListener('touchstart', (e) => {
-                const t = e.touches[0]; startX = t.clientX; startY = t.clientY; down = true;
-            }, { passive: true });
-            canvas.addEventListener('touchend', (e) => {
-                if (!down) return; down = false;
-                const t = e.changedTouches[0];
-                const dx = t.clientX - startX; const dy = t.clientY - startY;
-                if (Math.abs(dx) < 18 && Math.abs(dy) < 18) return;
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    setDir({ x: dx > 0 ? 1 : -1, y: 0 });
-                } else {
-                    setDir({ x: 0, y: dy > 0 ? 1 : -1 });
-                }
-            }, { passive: true });
+            joy.addEventListener('touchstart', (e) => { joyActive = true; joyCenter = getCenter(joy); const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY); }, { passive: true });
+            joy.addEventListener('touchmove', (e) => { if (!joyActive) return; const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY); }, { passive: true });
+            joy.addEventListener('touchend', () => { joyActive = false; resetKnob(); }, { passive: true });
+            joy.addEventListener('touchcancel', () => { joyActive = false; resetKnob(); }, { passive: true });
 
             // Avatar chọn
             document.querySelectorAll('.avatar-btn').forEach(btn => {
@@ -575,10 +516,10 @@
                 });
             });
 
-            // Khởi tạo & nút
+            // Init
             reset(); requestAnimationFrame(loop);
-            document.getElementById('btnRestart').onclick = () => { reset(); };
-            document.getElementById('playAgain').onclick = () => { reset(); };
+            document.getElementById('btnRestart').onclick = () => reset();
+            document.getElementById('playAgain').onclick = () => reset();
 
         })();
     </script>
