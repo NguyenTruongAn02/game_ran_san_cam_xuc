@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <title>Rắn Săn Mồi – MXH an toàn (Joystick + Avatar + Nhiều mồi/nguy cơ)</title>
+    <title>Rắn Săn Mồi – MXH an toàn (Joystick + Avatar + Nhiều mồi/nguy cơ + Âm thanh)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
@@ -90,19 +90,15 @@
             left: 50%;
             top: 50%;
             transform: translate(-50%, -50%);
-            /* căn giữa cả ngang & dọc */
             background: #0b1327;
             border: 1px solid #1f2937;
             padding: 12px 16px;
             border-radius: 14px;
             font-size: 1.05rem;
-            /* dễ đọc hơn */
             z-index: 4000;
-            /* nổi trên joystick */
             text-align: center;
             max-width: 85vw;
             pointer-events: none;
-            /* không chặn thao tác kéo joystick */
             box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
         }
 
@@ -315,20 +311,46 @@
             };
             let currentAvatarKey = "snake";
 
+            // ====== AUDIO (WebAudio – không cần file) ======
+            const AC = window.AudioContext || window.webkitAudioContext;
+            const audioCtx = new AC();
+            function tone(freq = 440, ms = 160, type = 'sine', vol = 0.15, glideTo = null) {
+                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+                o.type = type; o.frequency.value = freq;
+                g.gain.value = 0.0001;
+                const t = audioCtx.currentTime;
+                g.gain.linearRampToValueAtTime(vol, t + 0.01);
+                if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, t + ms / 1000);
+                g.gain.linearRampToValueAtTime(0.0001, t + ms / 1000);
+                o.connect(g).connect(audioCtx.destination);
+                o.start(); o.stop(t + ms / 1000 + 0.05);
+            }
+            function sEat() { tone(700, 90, 'sine', 0.12); setTimeout(() => tone(950, 110, 'triangle', 0.11), 60); }
+            function sBad() { tone(170, 220, 'square', 0.16); setTimeout(() => tone(120, 200, 'square', 0.14), 120); }
+            function sWall() { tone(220, 200, 'sawtooth', 0.18, 90); }               // rơi xuống
+            function sSpeedUp() { tone(300, 280, 'sawtooth', 0.12, 1000); }          // whoosh lên
+            function sGameOver() { tone(440, 140, 'sine', 0.14); setTimeout(() => tone(330, 140, 'sine', 0.13), 140); setTimeout(() => tone(262, 180, 'sine', 0.12), 260); }
+            function sTick() { tone(1200, 60, 'square', 0.1); } // nếu muốn dùng thêm
+            function sClick() { tone(900, 60, 'triangle', 0.08); }
+
+            // Kích hoạt audio sau tương tác đầu tiên (tránh iOS chặn)
+            const resumeAudioOnce = () => { audioCtx.resume && audioCtx.resume(); document.removeEventListener('touchstart', resumeAudioOnce); document.removeEventListener('click', resumeAudioOnce); };
+            document.addEventListener('touchstart', resumeAudioOnce, { passive: true });
+            document.addEventListener('click', resumeAudioOnce, { passive: true });
+
             // ===== Trạng thái =====
             let snake, dir, foods, bads, score, speedMul, hearts, gameOver, stepTimer, stepInterval;
 
             function reset() {
                 snake = [{ x: 10, y: 10 }];
                 dir = { x: 1, y: 0 };
-                foods = [];
-                bads = [];
+                foods = []; bads = [];
                 score = 0; speedMul = 1; hearts = 3; gameOver = false;
                 stepInterval = 220; stepTimer = 0;
-                // spawn đủ số lượng tối đa
                 while (foods.length < FOOD_MAX) placeFoodOne();
                 while (bads.length < BAD_MAX) placeBadOne();
                 updateHUD();
+                sClick(); // âm thanh nhỏ khi bắt đầu
             }
 
             function updateHUD() {
@@ -341,7 +363,8 @@
 
             function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
             function randCellInner(m = INNER_MARGIN) { return { x: randInt(m, GRID - 1 - m), y: randInt(m, GRID - 1 - m) }; }
-            function manhattan(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
+            function manhattan(a, b) { return Math.abs(a.x - a.x) + Math.abs(a.y - b.y); } // (bug) fixed below
+            function manhattan(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); } // correct
             function posEqual(a, b) { return a.x === b.x && a.y === b.y; }
             function cellOccupied(pos) {
                 if (snake.some(s => posEqual(s, pos))) return true;
@@ -353,24 +376,15 @@
             function placeFoodOne() {
                 let p, tries = 0;
                 do {
-                    p = randCellInner();
-                    tries++;
-                } while (
-                    cellOccupied(p) ||
-                    manhattan(p, snake[0]) < HEAD_SAFE_DIST ||
-                    (tries < 3 && (p.x === snake[0].x || p.y === snake[0].y))
-                );
+                    p = randCellInner(); tries++;
+                } while (cellOccupied(p) || manhattan(p, snake[0]) < HEAD_SAFE_DIST || (tries < 3 && (p.x === snake[0].x || p.y === snake[0].y)));
                 foods.push({ ...p, label: GOODS[Math.floor(Math.random() * GOODS.length)] });
             }
 
             function placeBadOne() {
                 let p;
-                do {
-                    p = randCellInner();
-                } while (
-                    cellOccupied(p) ||
-                    manhattan(p, snake[0]) < 2
-                );
+                do { p = randCellInner(); }
+                while (cellOccupied(p) || manhattan(p, snake[0]) < 2);
                 bads.push({ ...p, label: BADS[Math.floor(Math.random() * BADS.length)] });
             }
 
@@ -379,12 +393,12 @@
                 t.textContent = msg; t.classList.remove('d-none');
                 t.style.borderColor = good ? '#166534' : '#7f1d1d';
                 t.style.background = good ? '#0b1f16' : '#1a0f0f';
-                clearTimeout(t._timer);
-                t._timer = setTimeout(() => t.classList.add('d-none'), 1400);
+                clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.add('d-none'), 1400);
             }
 
             function endGame() {
                 gameOver = true;
+                sGameOver();
                 document.getElementById('finalScore').textContent = score;
                 const list = document.getElementById('tipsList'); list.innerHTML = '';
                 const mix = [...shuffle(GOOD_TIPS).slice(0, 3), BAD_TIPS[Math.floor(Math.random() * BAD_TIPS.length)]];
@@ -410,6 +424,7 @@
                 // tường
                 if (head.x < 0 || head.y < 0 || head.x >= GRID || head.y >= GRID) {
                     hearts--; updateHUD();
+                    sWall();
                     if (hearts <= 0) { endGame(); return; }
                     showToast("Đụng tường! Bình tĩnh xử lí tình huống.", false);
                     snake = [{ x: 10, y: 10 }]; dir = { x: 1, y: 0 }; return;
@@ -417,34 +432,39 @@
                 // thân
                 if (snake.some((s, i) => i > 0 && s.x === head.x && s.y === head.y)) {
                     hearts--; updateHUD();
+                    sWall();
                     if (hearts <= 0) { endGame(); return; }
                     showToast("Tự mâu thuẫn hành vi → rà soát nguyên tắc an toàn.", false);
                     snake = [{ x: 10, y: 10 }]; dir = { x: 1, y: 0 }; return;
                 }
                 snake.unshift(head);
 
-                // ăn food (nhiều item)
+                // ăn food
                 let ate = false;
                 for (let i = 0; i < foods.length; i++) {
                     if (posEqual(head, foods[i])) {
                         ate = true;
+                        sEat();
                         showToast("👍 " + foods[i].label, true);
                         foods.splice(i, 1);
-                        placeFoodOne(); // giữ đủ số lượng
+                        placeFoodOne();
                         score++;
-                        if (score % 5 === 0 && stepInterval > 120) { speedMul++; stepInterval -= 12; updateHUD(); }
+                        if (score % 5 === 0 && stepInterval > 120) {
+                            speedMul++; stepInterval -= 12; updateHUD(); sSpeedUp();
+                        }
                         break;
                     }
                 }
                 if (!ate) { snake.pop(); }
 
-                // va bad (nhiều item)
+                // đụng bad
                 for (let i = 0; i < bads.length; i++) {
                     if (posEqual(head, bads[i])) {
                         hearts--; updateHUD();
+                        sBad();
                         showToast("⚠ " + bads[i].label, false);
                         bads.splice(i, 1);
-                        placeBadOne(); // giữ đủ số lượng
+                        placeBadOne();
                         if (hearts <= 0) { endGame(); return; }
                         break;
                     }
@@ -508,6 +528,7 @@
             // ===== Điều khiển =====
             const keyMap = { ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 } };
             document.addEventListener('keydown', e => { if (keyMap[e.key]) setDir(keyMap[e.key]); });
+
             const qs = id => document.getElementById(id);
             ['up', 'down', 'left', 'right'].forEach(k => {
                 if (qs(k)) qs(k).onclick = () => setDir({ up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }[k]);
@@ -517,8 +538,7 @@
             // Joystick
             const joy = document.getElementById('joystick');
             const knob = document.getElementById('joyStick');
-            let joyActive = false;
-            let joyCenter = { x: 0, y: 0 };
+            let joyActive = false; let joyCenter = { x: 0, y: 0 };
             const R = 70, r = 56 / 2, DEADZONE = 18;
             function getCenter(el) { const rect = el.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; }
             function handleJoyMove(clientX, clientY) {
@@ -530,8 +550,8 @@
                 if (Math.max(ax, ay) > DEADZONE) { if (ax > ay) setDir({ x: dx > 0 ? 1 : -1, y: 0 }); else setDir({ x: 0, y: dy > 0 ? 1 : -1 }); }
             }
             function resetKnob() { knob.style.transform = 'translate(0,0)'; }
-            joy.addEventListener('touchstart', (e) => { joyActive = true; joyCenter = getCenter(joy); const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY); }, { passive: true });
-            joy.addEventListener('touchmove', (e) => { if (!joyActive) return; const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY); }, { passive: true });
+            joy.addEventListener('touchstart', e => { joyActive = true; joyCenter = getCenter(joy); const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY); }, { passive: true });
+            joy.addEventListener('touchmove', e => { if (!joyActive) return; const t = e.touches[0]; handleJoyMove(t.clientX, t.clientY); }, { passive: true });
             joy.addEventListener('touchend', () => { joyActive = false; resetKnob(); }, { passive: true });
             joy.addEventListener('touchcancel', () => { joyActive = false; resetKnob(); }, { passive: true });
 
@@ -542,13 +562,14 @@
                     btn.classList.add('active');
                     const key = btn.getAttribute('data-avatar');
                     if (AVATAR_MAP[key]) currentAvatarKey = key;
+                    sClick();
                 });
             });
 
             // Init
             reset(); requestAnimationFrame(loop);
-            document.getElementById('btnRestart').onclick = () => reset();
-            document.getElementById('playAgain').onclick = () => reset();
+            document.getElementById('btnRestart').onclick = () => { sClick(); reset(); };
+            document.getElementById('playAgain').onclick = () => { sClick(); reset(); };
 
         })();
     </script>
